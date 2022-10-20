@@ -2,6 +2,7 @@ from datetime import date, datetime
 import sys
 import time
 import json
+import requests
 
 from PyQt5.QtWidgets import QApplication, QWidget, QSplashScreen, QTabWidget, QMessageBox
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QCursor, QCloseEvent, QFontDatabase
@@ -25,11 +26,13 @@ from widgets.tabbar import TabBar, ProxyStyle
 from utils.helpers import StyleSheet
 from utils.enums import RegisterStatus
 from utils.message import Message
+from utils.globals import VERSION
 
 from windows.register_window import Register
 from windows.login_window import Login
 from windows.setup_window import InitialSetup
 from windows.update_password import UpdatePassword
+from windows.download_window import DownloadWindow
 
 from threads.google_thread import upload_google
 from threads.onedrive_thread import upload_onedrive
@@ -75,12 +78,40 @@ class Main(Ui_main_container, QWidget):
             self.register.register_close_signal.connect(self.register_event)
             self.register.exec_()
         else:
+            
+            self.check_updates()
             self.get_user_password_expiration()
             self.get_vault_password_expiration()
             
             # Check if there are any expired passwords
             if len(self.expired_passwords) > 0:
                 update_password(self)
+                
+    def check_updates(self):
+        data = None
+        
+        try:
+            data = requests.get("https://api.smartmetatec.com/index.php/update/version")
+        except:
+            # TODO: Update the database to show that the update request did run
+            return print("Cannot get the version")
+            
+        response = json.loads(json.loads(data.json()['data']))
+
+        if response['version'] == VERSION:
+            print("the versions are the same update the last check in the database")
+        else:
+                   
+            do_update = Message("There is a new update. Do you want to update TrustLock", "Update Available").prompt()
+            
+            if do_update == QMessageBox.Yes:
+                download_window = DownloadWindow()
+                download_window.close_app.connect(sys.exit)
+                download_window.exec_()
+            else:
+                print("Update the last checked time")
+                
+
         
     def get_vault_password_expiration(self):
         # Get all the vault entries
@@ -342,7 +373,7 @@ class Main(Ui_main_container, QWidget):
         if auto_save_dict['google']:
             upload_google(self, False)
         if auto_save_dict['onedrive']: 
-            upload_onedrive(self, False)  
+            upload_onedrive(self, False)
         return super().closeEvent(event)
         
 
